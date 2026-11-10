@@ -10,7 +10,7 @@ from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import config_validation as cv
-from homeassistant.helpers.httpx_client import get_async_client
+from homeassistant.helpers.httpx_client import create_async_httpx_client
 
 from . import DOMAIN
 
@@ -35,10 +35,11 @@ class ThemoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             try:
                 # Attempt to authenticate with the provided credentials
+                # Own client so the token isn't added to the shared client
                 themo_client = ThemoClient(
                     user_input[CONF_USERNAME],
                     user_input[CONF_PASSWORD],
-                    client=get_async_client(self.hass),
+                    client=create_async_httpx_client(self.hass),
                 )
 
                 await themo_client.authenticate()

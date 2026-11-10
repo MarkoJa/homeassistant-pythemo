@@ -30,6 +30,7 @@ To set up the Themo integration, follow these steps:
 3. **Power Entity**: Estimated power of the Themo device. The power is calculated as the device power status (1/0) multiplied by the configure maximum power of the device. Note that the power measurements can be very inaccurate due to really inaccurate power status.
 4. **Floor Temperature Entity**: Monitor the floor temperature with the Themo device.
 5. **Air Temperature Entity**: Monitor the air temperature with the Themo device.
+6. **Energy statistics**: Hourly energy use reported by the Themo cloud is imported into Home Assistant's long-term statistics as `themo:energy_<device id>` (kWh), named "Themo <device name>". Add them to the Energy dashboard under *Individual devices*. The first run imports the past 13 days (the API only serves 14 days); after that new hours are imported every 30 minutes. An hour appears once it has ended and the cloud has reported it. These are statistics, not entities, so they don't show up as sensors.
 
 ## Known Issues
 
