@@ -12,12 +12,19 @@ from pythemo.client import ThemoClient
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME, Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.event import (
+    async_track_time_change,
+    async_track_time_interval,
+)
 from homeassistant.helpers.httpx_client import create_async_httpx_client
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import DOMAIN
-from .energy import ENERGY_UPDATE_INTERVAL, async_import_energy
+from .energy import (
+    ENERGY_UPDATE_INTERVAL,
+    async_get_daily_energy,
+    async_import_energy,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -68,15 +75,25 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
                 await async_import_energy(hass, themo_client, devices)
         except httpx.HTTPError as err:
             _LOGGER.warning("Failed to import Themo energy data: %s", err)
+        # Also without new data, so today starts from 0 after midnight
+        hass.data[DOMAIN]["daily_energy"] = await async_get_daily_energy(hass, devices)
+        coordinator.async_update_listeners()
 
     # Fetch initial data so we have data when entities subscribe
     await coordinator.async_refresh()
-    hass.data[DOMAIN] = {"devices": devices, "coordinator": coordinator}
+    hass.data[DOMAIN] = {
+        "devices": devices,
+        "coordinator": coordinator,
+        "daily_energy": {},
+    }
     await hass.config_entries.async_forward_entry_setups(
         config_entry, [Platform.LIGHT, Platform.CLIMATE, Platform.SENSOR]
     )
     config_entry.async_on_unload(
         async_track_time_interval(hass, async_update_energy, ENERGY_UPDATE_INTERVAL)
+    )
+    config_entry.async_on_unload(
+        async_track_time_change(hass, async_update_energy, hour=0, minute=0, second=5)
     )
     config_entry.async_create_background_task(
         hass, async_update_energy(), "themo_energy_import"

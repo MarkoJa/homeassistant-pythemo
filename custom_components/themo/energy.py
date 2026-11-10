@@ -21,6 +21,7 @@ from homeassistant.components.recorder.models import (
 from homeassistant.components.recorder.statistics import (
     async_add_external_statistics,
     get_last_statistics,
+    statistics_during_period,
 )
 from homeassistant.const import UnitOfEnergy
 from homeassistant.core import HomeAssistant
@@ -130,3 +131,38 @@ async def async_import_energy(
             ),
             statistics,
         )
+
+
+async def async_get_daily_energy(
+    hass: HomeAssistant, devices: list[Device]
+) -> dict[str, tuple[float, float]]:
+    """Return (today, yesterday) kWh per device id from the imported statistics.
+
+    Days are local days. Today only covers the hours imported so far.
+    """
+    today_start = dt_util.start_of_local_day()
+    yesterday_start = dt_util.start_of_local_day(
+        dt_util.now().date() - timedelta(days=1)
+    )
+    statistic_ids = {energy_statistic_id(device): device.id for device in devices}
+    rows = await get_instance(hass).async_add_executor_job(
+        statistics_during_period,
+        hass,
+        yesterday_start,
+        None,
+        set(statistic_ids),
+        "hour",
+        None,
+        {"change"},
+    )
+    daily = {device.id: (0.0, 0.0) for device in devices}
+    for statistic_id, device_id in statistic_ids.items():
+        today = yesterday = 0.0
+        for row in rows.get(statistic_id, []):
+            change = row.get("change") or 0.0
+            if row["start"] >= today_start.timestamp():
+                today += change
+            else:
+                yesterday += change
+        daily[device_id] = (round(today, 3), round(yesterday, 3))
+    return daily
